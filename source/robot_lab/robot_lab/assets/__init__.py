@@ -27,3 +27,5 @@ ISAACLAB_ASSETS_METADATA = toml.load(os.path.join(ISAACLAB_ASSETS_EXT_DIR, "conf
 
 # Configure the module-level variables
 __version__ = ISAACLAB_ASSETS_METADATA["package"]["version"]
+
+from .go2_x5 import GO2_X5_CFG
