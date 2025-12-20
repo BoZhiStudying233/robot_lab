@@ -24,7 +24,10 @@ from rl_utils import camera_follow
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
-parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
+parser.add_argument("--video_length", type=int, default=600, help="Length of the recorded video (in steps).")
+parser.add_argument("--video_width", type=int, default=2440, help="Width of the recorded video.")
+parser.add_argument("--video_height", type=int, default=1560, help="Height of the recorded video.")
+parser.add_argument("--video_fps", type=int, default=20, help="FPS of the recorded video. Lower = slower playback.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -149,6 +152,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # set the log directory for the environment (works for all environment types)
     env_cfg.log_dir = log_dir
 
+    # set viewer resolution for higher quality video recording
+    if args_cli.video:
+        env_cfg.viewer.resolution = (args_cli.video_width, args_cli.video_height)
+
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
@@ -158,13 +165,24 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # wrap for video recording
     if args_cli.video:
+        # Calculate real-time fps based on simulation dt
+        step_dt = env.unwrapped.step_dt
+        realtime_fps = int(1.0 / step_dt)
+        # Use user-specified fps for video playback (lower = slower playback)
+        video_fps = args_cli.video_fps
+        video_duration = args_cli.video_length / video_fps
         video_kwargs = {
             "video_folder": os.path.join(log_dir, "videos", "play"),
             "step_trigger": lambda step: step == 0,
             "video_length": args_cli.video_length,
             "disable_logger": True,
+            "fps": video_fps,
         }
         print("[INFO] Recording videos during training.")
+        print(f"[INFO] Simulation realtime fps: {realtime_fps}, Video fps: {video_fps}")
+        print(f"[INFO] Video will be {video_duration:.1f} seconds ({args_cli.video_length} frames at {video_fps} fps)")
+        print(f"[INFO] Playback speed: {video_fps / realtime_fps:.2f}x (1.0 = realtime)")
+        print(f"[INFO] Resolution: {args_cli.video_width}x{args_cli.video_height}")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
@@ -212,31 +230,35 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     obs = env.get_observations()
     timestep = 0
     # simulate environment
-    while simulation_app.is_running():
-        start_time = time.time()
-        # run everything in inference mode
-        with torch.inference_mode():
-            # agent stepping
-            actions = policy(obs)
-            # actions = torch.zeros_like(actions)
-            # env stepping
-            obs, _, _, _ = env.step(actions)
-        if args_cli.video:
-            timestep += 1
-            # Exit the play loop after recording one video
-            if timestep == args_cli.video_length:
-                break
+    try:
+        while simulation_app.is_running():
+            start_time = time.time()
+            # run everything in inference mode
+            with torch.inference_mode():
+                # agent stepping
+                actions = policy(obs)
+                # actions = torch.zeros_like(actions)
+                # env stepping
+                obs, _, _, _ = env.step(actions)
+            if args_cli.video:
+                timestep += 1
+                # Exit the play loop after recording one video
+                if timestep == args_cli.video_length:
+                    print(f"[INFO] Video recording completed. Saved {args_cli.video_length} frames.")
+                    break
 
-        if args_cli.keyboard:
-            camera_follow(env)
+            if args_cli.keyboard:
+                camera_follow(env)
 
-        # time delay for real-time evaluation
-        sleep_time = dt - (time.time() - start_time)
-        if args_cli.real_time and sleep_time > 0:
-            time.sleep(sleep_time)
-
-    # close the simulator
-    env.close()
+            # time delay for real-time evaluation
+            sleep_time = dt - (time.time() - start_time)
+            if args_cli.real_time and sleep_time > 0:
+                time.sleep(sleep_time)
+    except Exception as e:
+        print(f"[WARNING] Simulation interrupted: {e}")
+    finally:
+        # close the simulator
+        env.close()
 
 
 if __name__ == "__main__":
