@@ -822,12 +822,13 @@
       </geometry>
     </collision>
   </link>
-  <joint name="arm_joint1" type="fixed">
+  <joint name="arm_joint1" type="revolute">
     <origin xyz="0 0 0.0603" rpy="0 0 0"/>
     <parent link="arm_base_link"/>
     <child link="arm_link1"/>
     <axis xyz="0 0 1"/>
-    <limit lower="-10" upper="10" effort="100" velocity="1000"/>
+    <limit lower="-2.618" upper="3.14" effort="15" velocity="3"/>
+    <dynamics damping="0.5" friction="0.1"/>
   </joint>
   <link name="arm_link2">
     <inertial>
@@ -856,12 +857,13 @@
       </geometry>
     </collision>
   </link>
-  <joint name="arm_joint2" type="fixed">
+  <joint name="arm_joint2" type="revolute">
     <origin xyz="0.02 0 0.0402" rpy="0 0 0"/>
     <parent link="arm_link1"/>
     <child link="arm_link2"/>
     <axis xyz="0 1 0"/>
-    <limit lower="0" upper="3.14" effort="100" velocity="1000"/>
+    <limit lower="0" upper="3.14" effort="15" velocity="3"/>
+    <dynamics damping="0.5" friction="0.1"/>
   </joint>
   <link name="arm_link3">
     <inertial>
@@ -890,12 +892,13 @@
       </geometry>
     </collision>
   </link>
-  <joint name="arm_joint3" type="fixed">
+  <joint name="arm_joint3" type="revolute">
     <origin xyz="-0.264 0 0" rpy="-3.1416 0 0"/>
     <parent link="arm_link2"/>
     <child link="arm_link3"/>
     <axis xyz="0 1 0"/>
-    <limit lower="0" upper="3.14" effort="30" velocity="10"/>
+    <limit lower="0" upper="3.14" effort="15" velocity="3"/>
+    <dynamics damping="0.5" friction="0.1"/>
   </joint>
   <link name="arm_link4">
     <inertial>
@@ -924,15 +927,13 @@
       </geometry>
     </collision>
   </link>
-  <joint name="arm_joint4" type="fixed">
+  <joint name="arm_joint4" type="revolute">
     <origin xyz="0.245 0 -0.056" rpy="0 0 0"/>
     <parent link="arm_link3"/>
     <child link="arm_link4"/>
     <axis xyz="0 1 0"/>
-    <limit  lower="-1.57079632679"
-      upper="1.57079632679"
-      effort="30"
-      velocity="10" />
+    <limit lower="-1.5708" upper="1.5708" effort="3" velocity="3"/>
+    <dynamics damping="0.3" friction="0.1"/>
   </joint>
   <link name="arm_link5">
     <inertial>
@@ -963,12 +964,13 @@
       </geometry>
     </collision>
   </link>
-  <joint name="arm_joint5" type="fixed">
+  <joint name="arm_joint5" type="revolute">
     <origin xyz="0.06575 -0.001 -0.0825" rpy="0 0 0"/>
     <parent link="arm_link4"/>
     <child link="arm_link5"/>
     <axis xyz="0 0 1"/>
-    <limit lower="-1.67" upper="1.67" effort="100" velocity="1000"/>
+    <limit lower="-1.5708" upper="1.5708" effort="3" velocity="3"/>
+    <dynamics damping="0.3" friction="0.1"/>
   </joint>
   <link name="arm_link6">
     <inertial>
@@ -992,12 +994,13 @@
       </geometry>
     </collision>
   </link>
-  <joint name="arm_joint6" type="fixed">
+  <joint name="arm_joint6" type="revolute">
     <origin xyz="0.02845 0 0.0825" rpy="-3.1416 0 0"/>
     <parent link="arm_link5"/>
     <child link="arm_link6"/>
     <axis xyz="1 0 0"/>
-    <limit lower="-1.57" upper="1.57" effort="100" velocity="1000"/>
+    <limit lower="-1.5708" upper="1.5708" effort="3" velocity="3"/>
+    <dynamics damping="0.3" friction="0.1"/>
   </joint>
 
   <link name="arm_eef_link">

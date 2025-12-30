@@ -112,7 +112,7 @@ class CommandsCfg:
         rel_heading_envs=1.0,
         heading_command=True,
         heading_control_stiffness=0.5,
-        debug_vis=True,
+        debug_vis=False,
         ranges=mdp.UniformThresholdVelocityCommandCfg.Ranges(
             lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
         ),
@@ -645,6 +645,43 @@ class RewardsCfg:
 
     upward = RewTerm(func=mdp.upward, weight=0.0)
 
+    # Arm-related rewards
+    arm_joint_vel_l2 = RewTerm(
+        func=mdp.arm_joint_vel_l2,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="arm_joint.*")},
+    )
+
+    arm_joint_acc_l2 = RewTerm(
+        func=mdp.arm_joint_acc_l2,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="arm_joint.*")},
+    )
+
+    arm_joint_torques_l2 = RewTerm(
+        func=mdp.arm_joint_torques_l2,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="arm_joint.*")},
+    )
+
+    arm_action_rate_l2 = RewTerm(
+        func=mdp.arm_action_rate_l2,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="arm_joint.*")},
+    )
+
+    arm_joint_pos_limits = RewTerm(
+        func=mdp.arm_joint_pos_limits,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="arm_joint.*")},
+    )
+
+    arm_joint_deviation_l2 = RewTerm(
+        func=mdp.arm_joint_deviation_l2,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="arm_joint.*")},
+    )
+
 
 @configclass
 class TerminationsCfg:
@@ -719,7 +756,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
-        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
+        self.sim.physx.gpu_max_rigid_patch_count = 30 * 2**15  # increased for more envs
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:
@@ -743,7 +780,6 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
                 reward_attr = getattr(self.rewards, attr)
                 if not callable(reward_attr) and reward_attr.weight == 0:
                     setattr(self.rewards, attr, None)
-
 
 def create_obsgroup_class(class_name, terms, enable_corruption=False, concatenate_terms=True):
     """

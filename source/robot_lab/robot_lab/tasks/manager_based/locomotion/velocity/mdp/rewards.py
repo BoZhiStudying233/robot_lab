@@ -678,3 +678,87 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scen
     reward = torch.sum(torch.square(asset.data.projected_gravity_b[:, :2]), dim=1)
     reward *= torch.clamp(-env.scene["robot"].data.projected_gravity_b[:, 2], 0, 0.7) / 0.7
     return reward
+
+
+# ========== Arm-related reward functions ==========
+
+
+def arm_joint_vel_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize arm joint velocities using L2 squared kernel.
+
+    This reward helps to suppress rapid arm movements that could destabilize the robot.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    reward = torch.sum(torch.square(asset.data.joint_vel[:, asset_cfg.joint_ids]), dim=1)
+    return reward
+
+
+def arm_joint_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize arm joint accelerations using L2 squared kernel.
+
+    This reward helps to ensure smooth arm movements by penalizing sudden changes in velocity.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    # Compute acceleration as change in velocity over time
+    # Note: This requires storing previous velocity, using joint_acc if available
+    reward = torch.sum(torch.square(asset.data.joint_acc[:, asset_cfg.joint_ids]), dim=1)
+    return reward
+
+
+def arm_joint_torques_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize arm joint torques using L2 squared kernel.
+
+    This reward helps to reduce energy consumption and prevent excessive forces on the arm joints.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    reward = torch.sum(torch.square(asset.data.applied_torque[:, asset_cfg.joint_ids]), dim=1)
+    return reward
+
+
+def arm_action_rate_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize arm action rate using L2 squared kernel.
+
+    This reward ensures smooth control commands by penalizing rapid changes in arm actions.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    # Get the arm joint indices
+    arm_joint_ids = asset_cfg.joint_ids
+    # Compute the action rate for arm joints only
+    action_diff = env.action_manager.action[:, arm_joint_ids] - env.action_manager.prev_action[:, arm_joint_ids]
+    reward = torch.sum(torch.square(action_diff), dim=1)
+    return reward
+
+
+def arm_joint_pos_limits(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Penalize arm joint positions approaching their limits.
+
+    This reward helps to prevent the arm from reaching extreme positions that could
+    cause instability or damage.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    # Get current joint positions for arm
+    joint_pos = asset.data.joint_pos[:, asset_cfg.joint_ids]
+    # Get joint limits
+    joint_pos_limits = asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, :]
+    # Compute distance to limits
+    out_of_limits = -(joint_pos - joint_pos_limits[:, :, 0]).clip(max=0.0)  # lower limit violation
+    out_of_limits += (joint_pos - joint_pos_limits[:, :, 1]).clip(min=0.0)  # upper limit violation
+    reward = torch.sum(out_of_limits, dim=1)
+    return reward
+
+
+def arm_joint_deviation_l2(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Penalize arm joint positions deviating from their default positions.
+
+    This reward encourages the arm to stay near its default (folded) position,
+    helping to maintain stability during locomotion.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    # Compute deviation from default position
+    deviation = asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+    reward = torch.sum(torch.square(deviation), dim=1)
+    return reward

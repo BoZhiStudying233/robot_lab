@@ -25,9 +25,14 @@ class Go2X5RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
         "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
     ]
+    arm_joint_names = [
+        "arm_joint1", "arm_joint2", "arm_joint3",
+        "arm_joint4", "arm_joint5", "arm_joint6",
+    ]
     # fmt: on
 
-    joint_names = dog_joint_names
+    # Unified joint names: 12 dog joints + 6 arm joints = 18 total
+    joint_names = dog_joint_names + arm_joint_names
 
     def __post_init__(self):
         # post init of parent
@@ -45,14 +50,21 @@ class Go2X5RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.observations.policy.joint_vel.scale = 0.05
         self.observations.policy.base_lin_vel = None
         self.observations.policy.height_scan = None
-        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = self.dog_joint_names
-        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = self.dog_joint_names
+        # Include all joints (dog + arm) in observations for unified policy
+        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = self.joint_names
+        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = self.joint_names
 
         # ------------------------------Actions------------------------------
-        # reduce action scale
-        self.actions.joint_pos.scale = {".*_hip_joint": 0.125, "^(?!.*_hip_joint).*": 0.25}
+        # Unified action space: 12 dog joints + 6 arm joints = 18 total
+        # Use different action scales for different joint types
+        self.actions.joint_pos.scale = {
+            ".*_hip_joint": 0.125,          # Dog hip joints
+            ".*_thigh_joint": 0.25,         # Dog thigh joints
+            ".*_calf_joint": 0.25,          # Dog calf joints
+            "arm_joint.*": 0.1,             # Arm joints (smaller scale for stability)
+        }
         self.actions.joint_pos.clip = {".*": (-100.0, 100.0)}
-        self.actions.joint_pos.joint_names = self.dog_joint_names
+        self.actions.joint_pos.joint_names = self.joint_names  # All 18 joints
 
         # ------------------------------Events------------------------------
         self.events.randomize_reset_base.params = {
@@ -147,6 +159,30 @@ class Go2X5RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.feet_gait.weight = 0.5
         self.rewards.feet_gait.params["synced_feet_pair_names"] = (("FL_foot", "RR_foot"), ("FR_foot", "RL_foot"))
         self.rewards.upward.weight = 1.0
+
+        # ------------------------------Arm Rewards------------------------------
+        # Arm stability rewards - penalize arm movements to maintain body stability
+        self.rewards.arm_joint_vel_l2.weight = -0.01  # Suppress arm velocity
+        self.rewards.arm_joint_vel_l2.params["asset_cfg"].joint_names = self.arm_joint_names
+
+        self.rewards.arm_joint_acc_l2.weight = -2.5e-6  # Suppress arm acceleration
+        self.rewards.arm_joint_acc_l2.params["asset_cfg"].joint_names = self.arm_joint_names
+
+        self.rewards.arm_joint_torques_l2.weight = -2.5e-4  # Reduce arm torque/energy
+        self.rewards.arm_joint_torques_l2.params["asset_cfg"].joint_names = self.arm_joint_names
+
+        self.rewards.arm_action_rate_l2.weight = -0.1  # Ensure smooth arm actions
+        self.rewards.arm_action_rate_l2.params["asset_cfg"].joint_names = self.arm_joint_names
+
+        self.rewards.arm_joint_pos_limits.weight = -5.0  # Avoid joint limits
+        self.rewards.arm_joint_pos_limits.params["asset_cfg"].joint_names = self.arm_joint_names
+
+        self.rewards.arm_joint_deviation_l2.weight = -0.5  # Encourage arm to stay near default
+        self.rewards.arm_joint_deviation_l2.params["asset_cfg"].joint_names = self.arm_joint_names
+
+        # Increase body stability penalties when arm is moving
+        self.rewards.ang_vel_xy_l2.weight = -0.1  # Increased from -0.05
+        self.rewards.lin_vel_z_l2.weight = -4.0   # Increased from -2.0
 
         # If the weight of rewards is 0, set rewards to None
         if self.__class__.__name__ == "Go2X5RoughEnvCfg":
