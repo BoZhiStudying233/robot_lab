@@ -19,7 +19,6 @@ from isaaclab.app import AppLauncher
 # local imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import cli_args  # isort: skip
-from rl_utils import camera_follow
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
@@ -66,6 +65,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import time
 import torch
+from rl_utils import camera_follow
 
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
@@ -80,7 +80,10 @@ from isaaclab.envs import (
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+try:
+    from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+except ModuleNotFoundError:
+    get_published_pretrained_checkpoint = None
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -138,6 +141,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
     if args_cli.use_pretrained_checkpoint:
+        if get_published_pretrained_checkpoint is None:
+            raise ModuleNotFoundError(
+                "The 'isaaclab.utils.pretrained_checkpoint' module is not available. "
+                "Please use --checkpoint instead of --use_pretrained_checkpoint."
+            )
         resume_path = get_published_pretrained_checkpoint("rsl_rl", task_name)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")

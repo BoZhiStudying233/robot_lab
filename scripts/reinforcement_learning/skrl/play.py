@@ -109,8 +109,13 @@ from isaaclab.envs import (
     multi_agent_to_single_agent,
 )
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
+
+# optional import for pretrained checkpoints
+try:
+    from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+except ImportError:
+    get_published_pretrained_checkpoint = None
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
@@ -153,6 +158,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, expe
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
     # get checkpoint path
     if args_cli.use_pretrained_checkpoint:
+        if get_published_pretrained_checkpoint is None:
+            raise ImportError(
+                "The 'isaaclab.utils.pretrained_checkpoint' module is not available. "
+                "Please use --checkpoint instead of --use_pretrained_checkpoint."
+            )
         resume_path = get_published_pretrained_checkpoint("skrl", task_name)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
