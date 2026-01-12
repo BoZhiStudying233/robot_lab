@@ -1,8 +1,12 @@
 # Copyright (c) 2024-2025 Ziqi Fan
 # SPDX-License-Identifier: Apache-2.0
 
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
+import robot_lab.tasks.manager_based.locomotion.velocity.mdp as mdp
 from robot_lab.tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 ##
@@ -53,6 +57,29 @@ class Go2X5RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # Include all joints (dog + arm) in observations for unified policy
         self.observations.policy.joint_pos.params["asset_cfg"].joint_names = self.joint_names
         self.observations.policy.joint_vel.params["asset_cfg"].joint_names = self.joint_names
+        self.observations.policy.arm_joint_command = ObsTerm(
+            func=mdp.generated_commands,
+            params={"command_name": "arm_joint_pos"},
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+        self.observations.critic.arm_joint_command = ObsTerm(
+            func=mdp.generated_commands,
+            params={"command_name": "arm_joint_pos"},
+            clip=(-100.0, 100.0),
+            scale=1.0,
+        )
+
+        # ------------------------------Commands------------------------------
+        self.commands.arm_joint_pos = mdp.ArmJointPositionCommandCfg(
+            asset_name="robot",
+            joint_names=self.arm_joint_names,
+            resampling_time_range=(1.0, 2.0),
+            position_range=(-0.5, 0.5),
+            use_default_offset=True,
+            clip_to_joint_limits=True,
+            preserve_order=True,
+        )
 
         # ------------------------------Actions------------------------------
         # Unified action space: 12 dog joints + 6 arm joints = 18 total
@@ -161,23 +188,33 @@ class Go2X5RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.upward.weight = 1.0
 
         # ------------------------------Arm Rewards------------------------------
-        # Arm stability rewards - penalize arm movements to maintain body stability
-        self.rewards.arm_joint_vel_l2.weight = -0.01  # Suppress arm velocity
+        # Track arm commands while keeping motions bounded
+        self.rewards.arm_joint_pos_tracking_l2 = RewTerm(
+            func=mdp.arm_joint_pos_tracking_l2,
+            weight=-2.0,
+            params={
+                "command_name": "arm_joint_pos",
+                "asset_cfg": SceneEntityCfg("robot", joint_names=self.arm_joint_names, preserve_order=True),
+            },
+        )
+
+        # Arm stability rewards - keep movement smooth and within limits
+        self.rewards.arm_joint_vel_l2.weight = -0.001
         self.rewards.arm_joint_vel_l2.params["asset_cfg"].joint_names = self.arm_joint_names
 
-        self.rewards.arm_joint_acc_l2.weight = -2.5e-6  # Suppress arm acceleration
+        self.rewards.arm_joint_acc_l2.weight = -2.5e-6
         self.rewards.arm_joint_acc_l2.params["asset_cfg"].joint_names = self.arm_joint_names
 
-        self.rewards.arm_joint_torques_l2.weight = -2.5e-4  # Reduce arm torque/energy
+        self.rewards.arm_joint_torques_l2.weight = -1.0e-4
         self.rewards.arm_joint_torques_l2.params["asset_cfg"].joint_names = self.arm_joint_names
 
-        self.rewards.arm_action_rate_l2.weight = -0.1  # Ensure smooth arm actions
+        self.rewards.arm_action_rate_l2.weight = -0.01
         self.rewards.arm_action_rate_l2.params["asset_cfg"].joint_names = self.arm_joint_names
 
-        self.rewards.arm_joint_pos_limits.weight = -5.0  # Avoid joint limits
+        self.rewards.arm_joint_pos_limits.weight = -5.0
         self.rewards.arm_joint_pos_limits.params["asset_cfg"].joint_names = self.arm_joint_names
 
-        self.rewards.arm_joint_deviation_l2.weight = -0.5  # Encourage arm to stay near default
+        self.rewards.arm_joint_deviation_l2.weight = 0.0
         self.rewards.arm_joint_deviation_l2.params["asset_cfg"].joint_names = self.arm_joint_names
 
         # Increase body stability penalties when arm is moving

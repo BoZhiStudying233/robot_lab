@@ -7,6 +7,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils import configclass
 
@@ -182,3 +183,61 @@ class DiscreteCommandControllerCfg(CommandTermCfg):
     List of available discrete commands, where each element is an integer.
     Example: [10, 20, 30, 40, 50]
     """
+
+
+class ArmJointPositionCommand(CommandTerm):
+    """Command generator that samples target joint positions for arm joints."""
+
+    cfg: ArmJointPositionCommandCfg  # type: ignore
+
+    def __init__(self, cfg: ArmJointPositionCommandCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self.asset: Articulation = env.scene[cfg.asset_name]
+        joint_names = cfg.joint_names
+        if joint_names is None:
+            raise ValueError("ArmJointPositionCommand requires joint_names to be specified.")
+        if isinstance(joint_names, str):
+            joint_names = [joint_names]
+        self.joint_ids, _ = self.asset.find_joints(joint_names, preserve_order=cfg.preserve_order)
+        if len(self.joint_ids) == 0:
+            raise ValueError(f"No joints matched joint_names={joint_names} in asset '{cfg.asset_name}'.")
+        self.command_buffer = torch.zeros(self.num_envs, len(self.joint_ids), device=self.device)
+
+    @property
+    def command(self) -> torch.Tensor:
+        return self.command_buffer
+
+    def _update_metrics(self):
+        pass
+
+    def _resample_command(self, env_ids: Sequence[int]):
+        joint_defaults = self.asset.data.default_joint_pos[env_ids][:, self.joint_ids]
+        offsets = torch.empty((len(env_ids), len(self.joint_ids)), device=self.device).uniform_(
+            *self.cfg.position_range
+        )
+        if self.cfg.use_default_offset:
+            target_pos = joint_defaults + offsets
+        else:
+            target_pos = offsets
+        if self.cfg.clip_to_joint_limits:
+            limits = self.asset.data.soft_joint_pos_limits[env_ids][:, self.joint_ids, :]
+            min_pos = limits[..., 0]
+            max_pos = limits[..., 1]
+            target_pos = torch.max(torch.min(target_pos, max_pos), min_pos)
+        self.command_buffer[env_ids] = target_pos
+
+    def _update_command(self):
+        pass
+
+
+@configclass
+class ArmJointPositionCommandCfg(CommandTermCfg):
+    """Configuration for arm joint position commands."""
+
+    class_type: type = ArmJointPositionCommand
+    asset_name: str = "robot"
+    joint_names: list[str] | str | None = None
+    preserve_order: bool = True
+    position_range: tuple[float, float] = (-0.5, 0.5)
+    use_default_offset: bool = True
+    clip_to_joint_limits: bool = True

@@ -117,6 +117,7 @@ class CommandsCfg:
             lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
         ),
     )
+    arm_joint_pos: mdp.ArmJointPositionCommandCfg | None = None
 
 
 @configclass

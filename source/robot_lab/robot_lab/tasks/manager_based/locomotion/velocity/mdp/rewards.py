@@ -762,3 +762,14 @@ def arm_joint_deviation_l2(
     deviation = asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
     reward = torch.sum(torch.square(deviation), dim=1)
     return reward
+
+
+def arm_joint_pos_tracking_l2(
+    env: ManagerBasedRLEnv, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Penalize deviation between arm joint positions and commanded targets."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    target_pos = env.command_manager.get_command(command_name)
+    error = asset.data.joint_pos[:, asset_cfg.joint_ids] - target_pos
+    reward = torch.sum(torch.square(error), dim=1)
+    return reward
