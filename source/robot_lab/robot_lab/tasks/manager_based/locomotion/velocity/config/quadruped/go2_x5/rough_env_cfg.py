@@ -80,6 +80,7 @@ class Go2X5RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
             clip_to_joint_limits=True,
             preserve_order=True,
         )
+        self.commands.base_velocity.debug_vis = True
 
         # ------------------------------Actions------------------------------
         # Unified action space: 12 dog joints + 6 arm joints = 18 total
